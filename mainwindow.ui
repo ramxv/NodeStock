@@ -40,6 +40,19 @@
          <string>hola</string>
         </property>
        </widget>
+       <widget class="QPushButton" name="pushButton">
+        <property name="geometry">
+         <rect>
+          <x>380</x>
+          <y>190</y>
+          <width>86</width>
+          <height>26</height>
+         </rect>
+        </property>
+        <property name="text">
+         <string>hola Chong</string>
+        </property>
+       </widget>
       </widget>
       <widget class="QWidget" name="tab_2">
        <attribute name="title">

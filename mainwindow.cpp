@@ -36,3 +36,15 @@ void MainWindow::on_proveedoresBtn_clicked()
     ptrProveedores->show();
 }
 
+
+void MainWindow::on_tabWidget_tabBarClicked(int index)
+{
+
+}
+
+
+void MainWindow::on_tabWidget_tabCloseRequested(int index)
+{
+
+}
+
