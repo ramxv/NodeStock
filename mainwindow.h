@@ -2,6 +2,13 @@
 #define MAINWINDOW_H
 
 #include <QMainWindow>
+#include <QtSql>
+#include <QFileInfo>
+#include <QtDebug>
+#include "categoria.h"
+#include "productos.h"
+
+
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -17,7 +24,14 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
+private slots:
+    void on_pushButton_clicked();
+
+    void on_pushButton_5_clicked();
+
 private:
     Ui::MainWindow *ui;
+    Categoria *ptrCategoria;
+    Productos *ptrProductos;
 };
 #endif // MAINWINDOW_H
