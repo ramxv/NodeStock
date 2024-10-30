@@ -14,6 +14,7 @@ SOURCES += \
     categoria.cpp \
     main.cpp \
     mainwindow.cpp \
+<<<<<<< HEAD
     productos.cpp
 
 HEADERS += \
@@ -26,6 +27,17 @@ FORMS += \
     categoria.ui \
     mainwindow.ui \
     productos.ui
+=======
+    proveedores2.cpp
+
+HEADERS += \
+    mainwindow.h \
+    proveedores2.h
+
+FORMS += \
+    mainwindow.ui \
+    proveedores2.ui
+>>>>>>> e1a61a4fd11cfb6ba1f4fe6f2ca85f9d1b8e9667
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin
