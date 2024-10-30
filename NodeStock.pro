@@ -12,32 +12,26 @@ CONFIG += c++17
 
 SOURCES += \
     categoria.cpp \
+    inventario.cpp \
     main.cpp \
     mainwindow.cpp \
-<<<<<<< HEAD
-    productos.cpp
+    productos.cpp \
+    proveedores.cpp
 
 HEADERS += \
     categoria.h \
     dbnodestock.h \
+    inventario.h \
     mainwindow.h \
-    productos.h
+    productos.h \
+    proveedores.h
 
 FORMS += \
     categoria.ui \
+    inventario.ui \
     mainwindow.ui \
-    productos.ui
-=======
-    proveedores2.cpp
-
-HEADERS += \
-    mainwindow.h \
-    proveedores2.h
-
-FORMS += \
-    mainwindow.ui \
-    proveedores2.ui
->>>>>>> e1a61a4fd11cfb6ba1f4fe6f2ca85f9d1b8e9667
+    productos.ui \
+    proveedores.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

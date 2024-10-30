@@ -1,6 +1,6 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
-#include "proveedores2.h"
+
 
 
 MainWindow::MainWindow(QWidget *parent)
@@ -11,6 +11,7 @@ MainWindow::MainWindow(QWidget *parent)
 
     ptrCategoria = new Categoria();
     ptrProductos = new Productos();
+    ptrProveedores = new Proveedores();
 }
 
 MainWindow::~MainWindow()
@@ -18,21 +19,20 @@ MainWindow::~MainWindow()
     delete ui;
 }
 
-
-void MainWindow::on_pushButton_clicked()
+void MainWindow::on_categoriaBtn_clicked()
 {
     ptrCategoria->show();
 }
 
 
-void MainWindow::on_pushButton_5_clicked()
+void MainWindow::on_productosBtn_clicked()
 {
     ptrProductos->show();
+}
 
-void MainWindow::on_poveedor_clicked()
+
+void MainWindow::on_proveedoresBtn_clicked()
 {
-    Proveedores2* proveedor = new Proveedores2(this);
-    proveedor->show();
-    this->hide();
+    ptrProveedores->show();
 }
 
