@@ -1,5 +1,7 @@
 #include "mainwindow.h"
 #include "ui_mainwindow.h"
+#include "proveedores2.h"
+
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -12,3 +14,11 @@ MainWindow::~MainWindow()
 {
     delete ui;
 }
+
+void MainWindow::on_poveedor_clicked()
+{
+    Proveedores2* proveedor = new Proveedores2(this);
+    proveedor->show();
+    this->hide();
+}
+
