@@ -55,13 +55,6 @@ void Proveedores::on_actualizarProveedorBtn_clicked()
 
 }
 
-
-void Proveedores::on_tableViewProveedores_doubleClicked(const QModelIndex &index)
-{
-
-}
-
-
 void Proveedores::on_eliminarProveedorBtn_clicked()
 {
 

@@ -5,9 +5,14 @@
 #include <QtSql>
 #include <QFileInfo>
 #include <QtDebug>
+#include <QByteArray>
+#include <QImage>
+#include <QList>
+#include <QVariantList>
 #include "categoria.h"
 #include "productos.h"
 #include "proveedores.h"
+#include "dbnodestock.h"
 
 QT_BEGIN_NAMESPACE
 namespace Ui {
@@ -24,20 +29,38 @@ public:
     ~MainWindow();
 
 private slots:    
-    void on_categoriaBtn_clicked();
 
-    void on_productosBtn_clicked();
+    void on_prodRegistrar_clicked();
 
-    void on_proveedoresBtn_clicked();
+    void on_imageBtn_clicked();
 
-    void on_tabWidget_tabBarClicked(int index);
+    void loadItems();
 
-    void on_tabWidget_tabCloseRequested(int index);
+    void displayItems(int index);
+
+    void on_prodAnterior_clicked();
+
+    void on_prodSiguiente_clicked();
+
+    void loadCategories();
+
+    void on_prodActualizar_clicked();
+
+    void on_prodEliminar_clicked();
+
+    void on_buscarBtn_clicked();
+
+    void clearFields();
 
 private:
     Ui::MainWindow *ui;
     Categoria *ptrCategoria;
     Productos *ptrProductos;
     Proveedores *ptrProveedores;
+    QByteArray imageData;
+    QList<QVariantMap> items;
+    int currentIndex = 0;
+    QString formatearPalabra(const QString& s);
+    bool isNewProductMode = true;
 };
 #endif // MAINWINDOW_H

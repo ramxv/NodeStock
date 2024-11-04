@@ -21,8 +21,6 @@ private slots:
 
     void on_actualizarProveedorBtn_clicked();
 
-    void on_tableViewProveedores_doubleClicked(const QModelIndex &index);
-
     void on_eliminarProveedorBtn_clicked();
 
 private:
