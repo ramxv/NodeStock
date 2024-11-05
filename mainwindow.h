@@ -28,7 +28,9 @@ public:
     MainWindow(QWidget *parent = nullptr);
     ~MainWindow();
 
-private slots:    
+private slots:
+
+    // Productos
 
     void on_prodRegistrar_clicked();
 
@@ -52,6 +54,44 @@ private slots:
 
     void clearFields();
 
+    // Inventario
+
+    void cargarInventario();
+
+    void cargarDato(int index);
+
+    void on_guardarBtn_clicked();
+
+    void on_actualizarBtn_clicked();
+
+    void on_eliminarBtn_clicked();
+
+    void on_impresionBtn_clicked();
+
+    bool cambiarBotonGuardar();
+
+    void loadProveedores();
+
+    void loadProductos();
+
+    // Categoría
+
+    void on_guardarCatBtn_clicked();
+
+    void on_eliminarCatBtn_clicked();
+
+    void on_actualizarCatBtn_clicked();
+
+    void on_impresionCatBtn_clicked();
+
+    void on_tableViewCategoria_doubleClicked(const QModelIndex &index);
+
+    void loadCategoriesInTable();
+
+    void on_prodImprimir_clicked();
+
+    void loadProveedoresTable();
+
 private:
     Ui::MainWindow *ui;
     Categoria *ptrCategoria;
@@ -62,5 +102,7 @@ private:
     int currentIndex = 0;
     QString formatearPalabra(const QString& s);
     bool isNewProductMode = true;
+    QSqlDatabase dbnodestock;
+    int currentCatId = -1;
 };
 #endif // MAINWINDOW_H
