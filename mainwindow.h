@@ -74,6 +74,10 @@ private slots:
 
     void loadProductos();
 
+    void anterior();
+
+    void siguiente();
+
     // Categoría
 
     void on_guardarCatBtn_clicked();
@@ -92,6 +96,20 @@ private slots:
 
     void loadProveedoresTable();
 
+    void on_anteriorBtn_clicked();
+
+    void on_siguienteBtn_clicked();
+
+    void on_guardarProveBtn_clicked();
+
+    void on_eliminarProveBtn_clicked();
+
+    void on_actualizarProveBtn_clicked();
+
+    void on_tableViewProveedores_doubleClicked(const QModelIndex &index);
+
+    void on_impresionProveBtn_clicked();
+
 private:
     Ui::MainWindow *ui;
     Categoria *ptrCategoria;
@@ -104,5 +122,7 @@ private:
     bool isNewProductMode = true;
     QSqlDatabase dbnodestock;
     int currentCatId = -1;
+    bool isNewProveedor= true;
+    int currentProvId = -1;
 };
 #endif // MAINWINDOW_H

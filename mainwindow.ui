@@ -33,7 +33,7 @@ QLabel {
 </string>
       </property>
       <property name="currentIndex">
-       <number>3</number>
+       <number>0</number>
       </property>
       <widget class="QWidget" name="tab">
        <attribute name="title">
@@ -1177,7 +1177,7 @@ QPushButton:hover {
 }</string>
             </property>
             <property name="text">
-             <string>Registrar Categoría</string>
+             <string>Registrar Proveedor</string>
             </property>
            </widget>
           </item>
@@ -1203,7 +1203,7 @@ QPushButton:hover {
 }</string>
             </property>
             <property name="text">
-             <string>Eliminar Categoría</string>
+             <string>Eliminar Proveedor</string>
             </property>
            </widget>
           </item>
@@ -1229,7 +1229,7 @@ QPushButton:hover {
 }</string>
             </property>
             <property name="text">
-             <string>Actualizar Categoría</string>
+             <string>Actualizar Proveedor</string>
             </property>
            </widget>
           </item>
@@ -1255,7 +1255,7 @@ QPushButton:hover {
 }</string>
             </property>
             <property name="text">
-             <string>Imprimir Categoría</string>
+             <string>Imprimir Proveedor</string>
             </property>
            </widget>
           </item>
@@ -1391,6 +1391,9 @@ QPushButton:hover {
           </property>
           <property name="text">
            <string>Proveedores</string>
+          </property>
+          <property name="alignment">
+           <set>Qt::AlignmentFlag::AlignCenter</set>
           </property>
          </widget>
         </item>
