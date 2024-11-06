@@ -100,7 +100,7 @@ void MainWindow::on_prodRegistrar_clicked()
 
 void MainWindow::on_imageBtn_clicked()
 {
-    QString imagePath = QFileDialog::getOpenFileName(this, "Seleccionar Imagen", "", "Images (*.png *.xpm *.jpg)");
+    QString imagePath = QFileDialog::getOpenFileName(this, "Seleccionar Imagen", "", "Images (*.png)");
     if (!imagePath.isEmpty()) {
         QImage image(imagePath);
 
@@ -526,13 +526,11 @@ void MainWindow::cargarDato(int index)
 
 void MainWindow::on_guardarBtn_clicked()
 {
-
-
     QPushButton *button = ui->guardarBtn;
 
     if (button->text() == "Agregar Nuevo") {
         button->setText("Guardar");
-        button->setStyleSheet("background-color: green; color: white;");
+        button->setStyleSheet("QPushButton {background-color: #3498db; color: white; border-radius: 5px; border: 1px solid black; padding: 10px 8px;} QPushButton:hover {background-color: #2980b9; border: 1px solid #ffffff;}");
 
         ui->id->clear();
         ui->comboBoxProducto->setCurrentIndex(0);
@@ -554,7 +552,7 @@ void MainWindow::on_guardarBtn_clicked()
 
         //cambiar el texto del boton
         button->setText("Agregar Nuevo");
-        button->setStyleSheet("background-color: white; color: black;");
+        button->setStyleSheet("QPushButton {background-color: #3498db; color: white; border-radius: 5px; border: 1px solid black; padding: 10px 8px;} QPushButton:hover {background-color: #2980b9; border: 1px solid #ffffff;}");
 
         if (!dbnodestock.isOpen() && !dbnodestock.open()) {
             qDebug() << "Error: No se pudo abrir la base de datos.";
@@ -610,7 +608,6 @@ void MainWindow::on_actualizarBtn_clicked()
         QMessageBox::warning(this, "Campos vacíos", "Todos los campos deben estar llenos");
         return;
     }
-
 
     if (QMessageBox::question(this, "Actualizar Registro", "¿Estás seguro de que quieres actualizar el registro con " + id + "?") == QMessageBox::Yes) {
 
@@ -790,7 +787,7 @@ bool MainWindow::cambiarBotonGuardar()
     QPushButton *button = ui->guardarBtn;
     if (button->text() == "Guardar") {
         button->setText("Agregar Nuevo");
-        button->setStyleSheet("background-color: white; color: black;");
+        button->setStyleSheet("background-color:#3498db; color:white; border-radius:5px; border:1px solid black; padding:10px 8px;");
         return true;
     }
     return false;
@@ -813,6 +810,12 @@ void MainWindow::on_guardarCatBtn_clicked()
     QSqlQuery insert_cat;
     QSqlQueryModel *modal = new QSqlQueryModel;
 
+    if (ui->nombreLineEdit->text().isEmpty() ||
+        ui->descLineEditCat->text().isEmpty()) {
+        QMessageBox::warning(this, "Campos Vacíos", "Por favor, complete todos los campos obligatorios antes de registrar la categoría.");
+        return;
+    }
+
     insert_cat.prepare("INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)");
     insert_cat.bindValue(":nombre", ui->nombreLineEdit->text());
     insert_cat.bindValue(":descripcion", ui->descLineEditCat->text());
@@ -823,6 +826,9 @@ void MainWindow::on_guardarCatBtn_clicked()
     } else {
         QMessageBox::information(this, "Success", "Inserción de Datos Exitosa.");
         qDebug() << "Inserción de Datos Exitosa.";
+        loadCategories();
+        ui->nombreLineEdit->clear();
+        ui->descLineEditCat->clear();
 
         QSqlQuery select_cat;
         select_cat.prepare("SELECT * FROM categorias");
@@ -887,9 +893,7 @@ void MainWindow::on_eliminarCatBtn_clicked()
             ui->tableViewCategoria->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
             ui->tableViewCategoria->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
         }
-
     }
-
 }
 
 
@@ -1236,4 +1240,3 @@ void MainWindow::on_impresionProveBtn_clicked()
     // Step 7: Print the document
     document.print(&printer);
 }
-
