@@ -11,27 +11,15 @@ CONFIG += c++17
 #DEFINES += QT_DISABLE_DEPRECATED_BEFORE=0x060000    # disables all the APIs deprecated before Qt 6.0.0
 
 SOURCES += \
-    categoria.cpp \
-    inventario.cpp \
     main.cpp \
-    mainwindow.cpp \
-    productos.cpp \
-    proveedores.cpp
+    mainwindow.cpp
 
 HEADERS += \
-    categoria.h \
     dbnodestock.h \
-    inventario.h \
-    mainwindow.h \
-    productos.h \
-    proveedores.h
+    mainwindow.h
 
 FORMS += \
-    categoria.ui \
-    inventario.ui \
-    mainwindow.ui \
-    productos.ui \
-    proveedores.ui
+    mainwindow.ui
 
 # Default rules for deployment.
 qnx: target.path = /tmp/$${TARGET}/bin

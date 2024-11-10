@@ -18,15 +18,22 @@ MainWindow::MainWindow(QWidget *parent)
     ui->setupUi(this);
     setWindowTitle("NodeStock");
 
-    ptrCategoria = new Categoria();
-    ptrProductos = new Productos();
-    ptrProveedores = new Proveedores();
+    qDebug() << QSqlDatabase::drivers();
 
-    dbnodestock = QSqlDatabase::addDatabase("QSQLITE");
-    dbnodestock.setDatabaseName("/home/ram/Documents/university/os/parcial2/NodeStock/nodeStock.db");
+
+    // Simplified database connection with error handling
+
+        dbnodestock = QSqlDatabase::addDatabase("QMYSQL");
+        dbnodestock.setHostName("192.168.19.153");  // Fedora server IP
+        dbnodestock.setDatabaseName("nodestock");
+        dbnodestock.setUserName("fedoraserver");
+        dbnodestock.setPassword("F3dora!xvpassword");
+        dbnodestock.setPort(3306);
+
 
     if (!dbnodestock.open()) {
         qDebug() << "Conexión Fallida";
+        QMessageBox::critical(this, "Database Error", "Failed to connect to the database.");
     } else {
         qDebug() << "Conexión Exitosa";
         loadProveedoresTable();
@@ -49,7 +56,7 @@ MainWindow::~MainWindow()
 
 void MainWindow::clearFields()
 {
-    ui->prodNombre->clear();              // Clear QLineEdit for product name
+    ui->prodNombre->clear();               // Clear QLineEdit for product name
     ui->prodDescripcion->clear();          // Clear QLineEdit for description
     ui->precioDoubleSpin->setValue(0.0);   // Reset QDoubleSpinBox to 0.0 for price
     ui->categoriaCbx->setCurrentIndex(-1); // Set QComboBox to no selection
@@ -58,6 +65,7 @@ void MainWindow::clearFields()
     imageData.clear();                     // Clear the QByteArray holding the image data
 }
 
+
 void MainWindow::on_prodRegistrar_clicked()
 {
     if (isNewProductMode) {
@@ -65,7 +73,6 @@ void MainWindow::on_prodRegistrar_clicked()
         ui->prodRegistrar->setText("Guardar Producto");
         isNewProductMode = false;
     } else {
-
         if (ui->prodNombre->text().isEmpty() ||
             ui->prodDescripcion->text().isEmpty() ||
             ui->precioDoubleSpin->value() == 0.0 ||
@@ -82,16 +89,14 @@ void MainWindow::on_prodRegistrar_clicked()
         prod_insert.bindValue(":nombre", formatearPalabra(ui->prodNombre->text()));
         prod_insert.bindValue(":descripcion", ui->prodDescripcion->text());
         prod_insert.bindValue(":precio", ui->precioDoubleSpin->value());
-
-        int categoria_id = ui->categoriaCbx->currentData().toInt();
-        prod_insert.bindValue(":categoria_id", categoria_id);
+        prod_insert.bindValue(":categoria_id", ui->categoriaCbx->currentData().toInt());
         prod_insert.bindValue(":imagen", imageData);
 
         if (!prod_insert.exec()) {
             QMessageBox::critical(this, "Error", "No se realizó el registro: " + prod_insert.lastError().text());
         } else {
             QMessageBox::information(this, "Éxito", "El producto se ha registrado con éxito.");
-            loadItems();
+            loadItems();  // Refresh the list of items after insertion
             ui->prodRegistrar->setText("Nuevo Producto");
             isNewProductMode = true;
         }
@@ -100,10 +105,15 @@ void MainWindow::on_prodRegistrar_clicked()
 
 void MainWindow::on_imageBtn_clicked()
 {
-    QString imagePath = QFileDialog::getOpenFileName(this, "Seleccionar Imagen", "", "Images (*.png)");
+    QString imagePath = QFileDialog::getOpenFileName(this, "Seleccionar Imagen", "", "Images (*.png *.jpg *.jpeg)");
     if (!imagePath.isEmpty()) {
         QImage image(imagePath);
+        if (image.isNull()) {
+            QMessageBox::warning(this, "Image Error", "Failed to load image.");
+            return;
+        }
 
+        // Display image in QLabel and save to QByteArray
         ui->imageContainerLbl->setPixmap(QPixmap::fromImage(image).scaled(ui->imageContainerLbl->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
 
         QBuffer buffer(&imageData);
@@ -115,7 +125,6 @@ void MainWindow::on_imageBtn_clicked()
 void MainWindow::loadItems()
 {
     items.clear();
-
     QSqlQuery itemsQuery("SELECT id, nombre, descripcion, precio, categoria_id, imagen, fecha_creacion FROM productos");
     while (itemsQuery.next()) {
         QVariantMap item;
@@ -126,7 +135,6 @@ void MainWindow::loadItems()
         item["categoria_id"] = itemsQuery.value("categoria_id").toInt();
         item["fecha_creacion"] = itemsQuery.value("fecha_creacion").toDate();
         item["imagen"] = itemsQuery.value("imagen").toByteArray();
-
         items.append(item);
     }
 
@@ -141,7 +149,6 @@ void MainWindow::loadItems()
 void MainWindow::displayItems(int index)
 {
     if (index >= 0 && index < items.size()) {
-        qDebug() << index;
         ui->prodNombre->setText(items[index]["nombre"].toString());
         ui->prodDescripcion->setText(items[index]["descripcion"].toString());
         ui->precioDoubleSpin->setValue(items[index]["precio"].toDouble());
@@ -154,10 +161,8 @@ void MainWindow::displayItems(int index)
 
         ui->fechaRegistro->setDate(items[index]["fecha_creacion"].toDate());
 
-        // Set imageData to the current item's image data
+        // Set image data and display it
         imageData = items[index]["imagen"].toByteArray();
-
-        // Display the image
         QPixmap pixmap;
         if (pixmap.loadFromData(imageData)) {
             ui->imageContainerLbl->setPixmap(pixmap.scaled(ui->imageContainerLbl->size(), Qt::KeepAspectRatio, Qt::SmoothTransformation));
@@ -232,10 +237,10 @@ void MainWindow::loadProveedores()
 void MainWindow::loadProductos()
 {
     ui->comboBoxProducto->clear();
-    QSqlQuery query("SELECT id, nombre FROM productos");
-    while (query.next()) {
-        int id = query.value("id").toInt();
-        QString name = query.value("nombre").toString();
+    QSqlQuery itemsQuery("SELECT id, nombre FROM productos");
+    while (itemsQuery.next()) {
+        int id = itemsQuery.value("id").toInt();
+        QString name = itemsQuery.value("nombre").toString();
         ui->comboBoxProducto->addItem(name, id);
     }
 }
@@ -248,7 +253,6 @@ void MainWindow::on_prodActualizar_clicked()
     }
 
     int itemId = items[currentIndex]["id"].toInt();
-
     QSqlQuery updateQuery;
     updateQuery.prepare("UPDATE productos SET nombre = :nombre, descripcion = :descripcion, "
                         "precio = :precio, categoria_id = :categoria_id, "
@@ -259,10 +263,7 @@ void MainWindow::on_prodActualizar_clicked()
     updateQuery.bindValue(":descripcion", ui->prodDescripcion->text());
     updateQuery.bindValue(":precio", ui->precioDoubleSpin->value());
     updateQuery.bindValue(":categoria_id", ui->categoriaCbx->currentData().toInt());
-
-    // Ensure we use the current imageData, whether updated or not
     updateQuery.bindValue(":imagen", imageData);
-
     updateQuery.bindValue(":fecha_creacion", ui->fechaRegistro->date());
     updateQuery.bindValue(":id", itemId);
 
@@ -271,7 +272,7 @@ void MainWindow::on_prodActualizar_clicked()
     } else {
         QMessageBox::information(this, "Éxito", "El producto se ha actualizado con éxito.");
         loadItems();
-        displayItems(currentIndex);
+        displayItems(currentIndex);  // Refresh display with updated product details
     }
 }
 
@@ -284,10 +285,8 @@ void MainWindow::on_prodEliminar_clicked()
     }
 
     int itemId = items[currentIndex]["id"].toInt();
-
-    QMessageBox::StandardButton reply;
-    reply = QMessageBox::question(this, "Confirmación", "Está seguro de eliminar el producto?",
-                                  QMessageBox::Yes | QMessageBox::No);
+    auto reply = QMessageBox::question(this, "Confirmación", "Está seguro de eliminar el producto?",
+                                       QMessageBox::Yes | QMessageBox::No);
 
     if (reply == QMessageBox::Yes) {
         QSqlQuery deleteQuery;
@@ -297,27 +296,28 @@ void MainWindow::on_prodEliminar_clicked()
         if (!deleteQuery.exec()) {
             QMessageBox::critical(this, "Error", "No se pudo eliminar el producto: " + deleteQuery.lastError().text());
         } else {
-            QMessageBox::information(this, "Éxito", "El producto se ha elimado con éxito.");
-
+            QMessageBox::information(this, "Éxito", "El producto se ha eliminado con éxito.");
             loadItems();
-            if (currentIndex >= items.size()) {
-                currentIndex = items.size() - 1;
+            currentIndex = qMin(currentIndex, items.size() - 1);  // Adjust index to avoid out-of-bounds access
+            if (!items.isEmpty()) {
+                displayItems(currentIndex);
+            } else {
+                clearFields();
             }
-            displayItems(currentIndex);
         }
     }
 }
 
 
+
 void MainWindow::on_buscarBtn_clicked()
 {
     QSqlQuery buscar_productos;
-    buscar_productos.prepare("SELECT nombre, descripcion, precio FROM productos WHERE nombre = :nombre");
+    buscar_productos.prepare("SELECT nombre, descripcion, precio FROM productos WHERE nombre LIKE :nombre");
+    buscar_productos.bindValue(":nombre", "%" + formatearPalabra(ui->buscarLineEdit->text()) + "%");
 
-    buscar_productos.bindValue(":nombre", formatearPalabra( ui->buscarLineEdit->text()));
-
-    if(!buscar_productos.exec()){
-      QMessageBox::critical(this, "Error", "No se encontró el producto: " + buscar_productos.lastError().text());
+    if (!buscar_productos.exec()) {
+        QMessageBox::critical(this, "Error", "No se encontró el producto: " + buscar_productos.lastError().text());
     } else {
         QSqlQueryModel *model = new QSqlQueryModel(this);
         model->setQuery(std::move(buscar_productos));
@@ -327,11 +327,13 @@ void MainWindow::on_buscarBtn_clicked()
         model->setHeaderData(1, Qt::Horizontal, "Descripción");
         model->setHeaderData(2, Qt::Horizontal, "Precio");
 
+        // Adjust column widths
         ui->prodTableview->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
         ui->prodTableview->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
         ui->prodTableview->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
     }
 }
+
 
 QString MainWindow::formatearPalabra(const QString& s)
 {
@@ -344,7 +346,6 @@ QString MainWindow::formatearPalabra(const QString& s)
 
 void MainWindow::on_prodImprimir_clicked()
 {
-    // Step 1: Set up the printer
     QPrinter printer(QPrinter::HighResolution);
     printer.setPageSize(QPageSize(QPageSize::A4));
     printer.setFullPage(true);
@@ -353,13 +354,11 @@ void MainWindow::on_prodImprimir_clicked()
     pageLayout.setOrientation(QPageLayout::Portrait);
     printer.setPageLayout(pageLayout);
 
-    // Step 2: Show the print dialog
     QPrintDialog printDialog(&printer, this);
     if (printDialog.exec() != QDialog::Accepted) {
-        return; // Exit if the user cancels the dialog
+        return;
     }
 
-    // Step 3: Create HTML content with the current display data
     QString htmlContent;
     htmlContent += "<html><head><style>";
     htmlContent += "body { font-family: Arial, sans-serif; }";
@@ -369,19 +368,14 @@ void MainWindow::on_prodImprimir_clicked()
     htmlContent += "th { background-color: #f2f2f2; font-weight: bold; }";
     htmlContent += "</style></head><body>";
 
-    htmlContent += "<h1>Producto</h1>";
-
-    // Display the current values
-    htmlContent += "<table>";
+    htmlContent += "<h1>Producto</h1><table>";
     htmlContent += "<tr><th>Nombre</th><td>" + ui->prodNombre->text() + "</td></tr>";
     htmlContent += "<tr><th>Descripción</th><td>" + ui->prodDescripcion->text() + "</td></tr>";
     htmlContent += "<tr><th>Precio</th><td>" + QString::number(ui->precioDoubleSpin->value()) + "</td></tr>";
     htmlContent += "<tr><th>Categoría</th><td>" + ui->categoriaCbx->currentText() + "</td></tr>";
     htmlContent += "<tr><th>Fecha de Registro</th><td>" + ui->fechaRegistro->date().toString("yyyy-MM-dd") + "</td></tr>";
 
-    // Check if there is an image
     if (!imageData.isEmpty()) {
-        // Convert image data to Base64 and embed it in HTML
         QString base64Image = QString::fromLatin1(imageData.toBase64().data());
         htmlContent += "<tr><th>Imagen</th><td><img src='data:image/png;base64," + base64Image + "' width='200' /></td></tr>";
     } else {
@@ -390,176 +384,142 @@ void MainWindow::on_prodImprimir_clicked()
 
     htmlContent += "</table></body></html>";
 
-    // Step 4: Load HTML content into a QTextDocument and print it
     QTextDocument document;
     document.setHtml(htmlContent);
     document.setPageSize(printer.pageRect(QPrinter::Point).size());
     document.print(&printer);
 }
 
+
 //// ========================> INVENTARIO <======================== ////
+/// \brief MainWindow::siguiente
+///
+void MainWindow::clearInventoryFields()
+{
+    ui->id->clear();
+    ui->comboBoxProducto->setCurrentIndex(0);
+    ui->comboBoxProveedor->setCurrentIndex(0);
+    ui->spinBoxCantidad->clear();
+    ui->fechaEntrada->setDate(QDate::currentDate());
+}
+
+bool MainWindow::validateInventoryFields()
+{
+    if (ui->comboBoxProducto->currentIndex() == -1 || ui->comboBoxProveedor->currentIndex() == -1 || ui->spinBoxCantidad->value() == 0) {
+        QMessageBox::warning(this, "Campos vacíos", "Todos los campos deben estar llenos.");
+        return false;
+    }
+    return true;
+}
+
 
 void MainWindow::siguiente()
 {
     cambiarBotonGuardar();
-    cargarDato(indexActual);
-
-    qDebug() << QString::number(ui->tableViewInventario->model()->rowCount()) + " rw count";
-    qDebug() << indexActual;
-    if (indexActual < ui->tableViewInventario->model()->rowCount() -1) {
-        qDebug() << indexActual;
+    if (indexActual < ui->tableViewInventario->model()->rowCount() - 1) {
         indexActual++;
         cargarDato(indexActual);
+    } else {
+        QMessageBox::information(this, "Fin", "Ya se encuentra en el último registro.");
     }
 }
 
 void MainWindow::anterior()
 {
     cambiarBotonGuardar();
-    cargarDato(indexActual);
-
     if (indexActual > 0) {
         indexActual--;
         cargarDato(indexActual);
+    } else {
+        QMessageBox::information(this, "Inicio", "Ya se encuentra en el primer registro.");
     }
 }
+
 
 void MainWindow::cargarInventario()
 {
     QSqlQueryModel *model = new QSqlQueryModel(this);
     QSqlQuery select_inventario("SELECT i.id, i.cantidad, i.fecha_entrada, p.nombre AS nombre_producto, p2.nombre AS nombre_proveedor "
-                         "FROM inventario i "
-                         "INNER JOIN productos p ON p.id = i.producto_id "
-                         "INNER JOIN proveedores p2 ON p2.id = i.proveedor_id");
+                                "FROM inventario i "
+                                "INNER JOIN productos p ON p.id = i.producto_id "
+                                "INNER JOIN proveedores p2 ON p2.id = i.proveedor_id");
 
     if (select_inventario.exec()) {
-
-        if (!select_inventario.next()) {
-            qDebug() << "No se encontraron resultados.";
-        } else {
-            do {
-                qDebug() << "ID:" << select_inventario.value(0).toInt();
-                qDebug() << "Cantidad:" << select_inventario.value(1).toInt();
-                qDebug() << "Fecha Entrada:" << select_inventario.value(2).toDate().toString("yyyy-MM-dd");
-                qDebug() << "Nombre Producto:" << select_inventario.value(3).toString();
-                qDebug() << "Nombre Proveedor:" << select_inventario.value(4).toString();
-            } while (select_inventario.next());
-        }
-
         model->setQuery(std::move(select_inventario));
         ui->tableViewInventario->setModel(model);
 
-        // Configurar encabezados personalizados
+        // Setting custom headers
         model->setHeaderData(0, Qt::Horizontal, "ID");
         model->setHeaderData(1, Qt::Horizontal, "Cantidad");
         model->setHeaderData(2, Qt::Horizontal, "Fecha Entrada");
-        model->setHeaderData(3, Qt::Horizontal, "producto");
+        model->setHeaderData(3, Qt::Horizontal, "Producto");
         model->setHeaderData(4, Qt::Horizontal, "Proveedor");
 
-        // Ajustar el tamaño de las columnas
+        // Resize columns
         ui->tableViewInventario->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
         ui->tableViewInventario->horizontalHeader()->setSectionResizeMode(1, QHeaderView::ResizeToContents);
         ui->tableViewInventario->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
         ui->tableViewInventario->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
         ui->tableViewInventario->horizontalHeader()->setSectionResizeMode(4, QHeaderView::Stretch);
+
+        // Load the initial record into the form fields
+        indexActual = 0;
         cargarDato(indexActual);
     } else {
-        qDebug() << "Error en la consulta:" << select_inventario.lastError().text();
+        QMessageBox::critical(this, "Error", "No se pudo cargar el inventario: " + select_inventario.lastError().text());
     }
 }
 
 void MainWindow::cargarDato(int index)
 {
-    if (index >= 0 && index < ui->tableViewInventario->model()->rowCount()) {
-        QModelIndex idIndex = ui->tableViewInventario->model()->index(index, 0);
-        QString id = ui->tableViewInventario->model()->data(idIndex).toString();
+    if (index < 0 || index >= ui->tableViewInventario->model()->rowCount()) return;
 
-        qDebug() << id << " id dentro";
+    QModelIndex idIndex = ui->tableViewInventario->model()->index(index, 0);
+    QString id = ui->tableViewInventario->model()->data(idIndex).toString();
 
-        if (!dbnodestock.isOpen() && !dbnodestock.open()) {
-            qDebug() << "Error: No se pudo abrir la base de datos.";
-            return;
-        }
+    if (!dbnodestock.isOpen() && !dbnodestock.open()) {
+        qDebug() << "Error: No se pudo abrir la base de datos.";
+        return;
+    }
 
-        QSqlQuery QueryInsertData(dbnodestock);
-        QueryInsertData.prepare("SELECT * FROM inventario WHERE id = :id");
-        QueryInsertData.bindValue(":id", id);
+    QSqlQuery QueryInsertData(dbnodestock);
+    QueryInsertData.prepare("SELECT * FROM inventario WHERE id = :id");
+    QueryInsertData.bindValue(":id", id);
 
-        if (!QueryInsertData.exec()) {
-            qDebug() << "Error al obtener los datos en la tabla:" << QueryInsertData.lastError().text();
-        } else {
-            if (QueryInsertData.next()) {
-                QString id = QueryInsertData.value(0).toString();
-                int productoId = QueryInsertData.value(1).toInt();
-                int proveedorId = QueryInsertData.value(2).toInt();
-                int cantidad = QueryInsertData.value(3).toInt();
-                QDate fecha = QueryInsertData.value(4).toDate();
-
-                ui->id->setText(id);
-
-                // Seleccionar el producto en el comboBoxProducto usando productoId
-                int productoIndex = ui->comboBoxProducto->findData(productoId);
-                if (productoIndex != -1) {
-                    ui->comboBoxProducto->setCurrentIndex(productoIndex);
-                } else {
-                    qDebug() << "Producto ID no encontrado en comboBoxProducto";
-                }
-
-                // Seleccionar el proveedor en el comboBoxProveedor usando proveedorId
-                int proveedorIndex = ui->comboBoxProveedor->findData(proveedorId);
-                if (proveedorIndex != -1) {
-                    ui->comboBoxProveedor->setCurrentIndex(proveedorIndex);
-                } else {
-                    qDebug() << "Proveedor ID no encontrado en comboBoxProveedor";
-                }
-
-                ui->spinBoxCantidad->setValue(cantidad);
-                ui->fechaEntrada->setDate(fecha);
-
-                qDebug() << "Datos cargados";
-            } else {
-                qDebug() << "No existen datos";
-            }
-        }
+    if (!QueryInsertData.exec()) {
+        qDebug() << "Error al obtener los datos en la tabla:" << QueryInsertData.lastError().text();
+    } else if (QueryInsertData.next()) {
+        ui->id->setText(QueryInsertData.value(0).toString());
+        ui->comboBoxProducto->setCurrentIndex(ui->comboBoxProducto->findData(QueryInsertData.value(1).toInt()));
+        ui->comboBoxProveedor->setCurrentIndex(ui->comboBoxProveedor->findData(QueryInsertData.value(2).toInt()));
+        ui->spinBoxCantidad->setValue(QueryInsertData.value(3).toInt());
+        ui->fechaEntrada->setDate(QueryInsertData.value(4).toDate());
+        qDebug() << "Datos cargados";
+    } else {
+        qDebug() << "No existen datos";
     }
 }
+
 
 void MainWindow::on_guardarBtn_clicked()
 {
     QPushButton *button = ui->guardarBtn;
-
     if (button->text() == "Agregar Nuevo") {
         button->setText("Guardar");
-        button->setStyleSheet("QPushButton {background-color: #3498db; color: white; border-radius: 5px; border: 1px solid black; padding: 10px 8px;} QPushButton:hover {background-color: #2980b9; border: 1px solid #ffffff;}");
-
-        ui->id->clear();
-        ui->comboBoxProducto->setCurrentIndex(0);
-        ui->comboBoxProveedor->setCurrentIndex(0);
-        ui->spinBoxCantidad->clear();
-        ui->fechaEntrada->clear();
+        clearInventoryFields();
     } else {
+        if (!validateInventoryFields()) return;
+
         QString producto = ui->comboBoxProducto->currentData().toString();
         QString proveedor = ui->comboBoxProveedor->currentData().toString();
         QString cantidad = ui->spinBoxCantidad->text();
-        QDate  fecha = ui->fechaEntrada->date();
-        QString fecha_entrada = fecha.toString("yyyy-MM-dd");
-        qDebug() << fecha_entrada;
-        if (producto.isEmpty() || proveedor.isEmpty() || cantidad.isEmpty() || fecha_entrada.isEmpty()) {
-            QMessageBox::warning(this, "campos vacios", "Todos los campos deben estar llenos");
-            return;
-        }
-
-
-        //cambiar el texto del boton
-        button->setText("Agregar Nuevo");
-        button->setStyleSheet("QPushButton {background-color: #3498db; color: white; border-radius: 5px; border: 1px solid black; padding: 10px 8px;} QPushButton:hover {background-color: #2980b9; border: 1px solid #ffffff;}");
+        QString fecha_entrada = ui->fechaEntrada->date().toString("yyyy-MM-dd");
 
         if (!dbnodestock.isOpen() && !dbnodestock.open()) {
             qDebug() << "Error: No se pudo abrir la base de datos.";
             return;
         }
 
-        // Start a transaction
         if (!dbnodestock.transaction()) {
             qDebug() << "Error al iniciar la transacción:" << dbnodestock.lastError().text();
             return;
@@ -568,219 +528,172 @@ void MainWindow::on_guardarBtn_clicked()
         QSqlQuery QueryInsertData(dbnodestock);
         QueryInsertData.prepare("INSERT INTO inventario (producto_id, proveedor_id, cantidad, fecha_entrada) "
                                 "VALUES (:producto, :proveedor, :cantidad, :fecha_entrada)");
-
         QueryInsertData.bindValue(":producto", producto);
         QueryInsertData.bindValue(":proveedor", proveedor);
         QueryInsertData.bindValue(":cantidad", cantidad);
         QueryInsertData.bindValue(":fecha_entrada", fecha_entrada);
 
-        // ejecutar el insert
         if (!QueryInsertData.exec()) {
             qDebug() << "Error al insertar en la tabla:" << QueryInsertData.lastError().text();
             dbnodestock.rollback();
         } else {
-            qDebug() << "Inserción exitosa.";
             dbnodestock.commit();
-            cargarInventario();
+            cargarInventario();  // Refresh inventory data
+            button->setText("Agregar Nuevo");
         }
-
-        // Close the connection
-        dbnodestock.close();
     }
 }
 
 void MainWindow::on_actualizarBtn_clicked()
 {
-
-    if(cambiarBotonGuardar()) {
-        cargarDato(indexActual);
+    if (indexActual < 0 || indexActual >= ui->tableViewInventario->model()->rowCount()) {
+        QMessageBox::warning(this, "Error", "Seleccione un registro para actualizar.");
         return;
     }
+
+    if (!validateInventoryFields()) return;
 
     QString id = ui->id->text();
     QString producto = ui->comboBoxProducto->currentData().toString();
     QString proveedor = ui->comboBoxProveedor->currentData().toString();
     QString cantidad = ui->spinBoxCantidad->text();
-    QDate  fecha = ui->fechaEntrada->date();
-    QString fecha_entrada = fecha.toString("yyyy-MM-dd");
+    QString fecha_entrada = ui->fechaEntrada->date().toString("yyyy-MM-dd");
 
-    if (id.isEmpty() || producto.isEmpty() || proveedor.isEmpty() || cantidad.isEmpty() || fecha_entrada.isEmpty()) {
-        QMessageBox::warning(this, "Campos vacíos", "Todos los campos deben estar llenos");
+    if (!dbnodestock.isOpen() && !dbnodestock.open()) {
+        qDebug() << "Error: No se pudo abrir la base de datos.";
         return;
     }
 
-    if (QMessageBox::question(this, "Actualizar Registro", "¿Estás seguro de que quieres actualizar el registro con " + id + "?") == QMessageBox::Yes) {
-
-        // Verifica la conexión con la base de datos
-        if (!dbnodestock.isOpen() && !dbnodestock.open()) {
-            qDebug() << "Error: No se pudo abrir la base de datos.";
-            return;
-        }
-
-        // Inicia una transacción
-        if (!dbnodestock.transaction()) {
-            qDebug() << "Error al iniciar la transacción:" << dbnodestock.lastError().text();
-            return;
-        }
-
-        QSqlQuery QueryUpdateData(dbnodestock);
-        QueryUpdateData.prepare("UPDATE inventario SET "
-                                "producto_id = :producto, "
-                                "proveedor_id = :proveedor, "
-                                "cantidad = :cantidad, "
-                                "fecha_entrada = :fecha_entrada "
-                                "WHERE id = :id");
-
-        QueryUpdateData.bindValue(":producto", producto);
-        QueryUpdateData.bindValue(":proveedor", proveedor);
-        QueryUpdateData.bindValue(":cantidad", cantidad);
-        QueryUpdateData.bindValue(":fecha_entrada", fecha_entrada);
-        QueryUpdateData.bindValue(":id", id);
-
-        // Ejecutar el update
-        if (!QueryUpdateData.exec()) {
-            qDebug() << "Error al actualizar en la tabla:" << QueryUpdateData.lastError().text();
-            dbnodestock.rollback();
-        } else {
-            qDebug() << "Actualización exitosa.";
-            dbnodestock.commit();
-            cargarInventario();  // Recarga los datos en la tabla para reflejar el cambio
-        }
+    if (!dbnodestock.transaction()) {
+        qDebug() << "Error al iniciar la transacción:" << dbnodestock.lastError().text();
+        return;
     }
 
-    // Cierra la conexión
-    dbnodestock.close();
+    QSqlQuery QueryUpdateData(dbnodestock);
+    QueryUpdateData.prepare("UPDATE inventario SET producto_id = :producto, proveedor_id = :proveedor, "
+                            "cantidad = :cantidad, fecha_entrada = :fecha_entrada WHERE id = :id");
+    QueryUpdateData.bindValue(":producto", producto);
+    QueryUpdateData.bindValue(":proveedor", proveedor);
+    QueryUpdateData.bindValue(":cantidad", cantidad);
+    QueryUpdateData.bindValue(":fecha_entrada", fecha_entrada);
+    QueryUpdateData.bindValue(":id", id);
+
+    if (!QueryUpdateData.exec()) {
+        qDebug() << "Error al actualizar en la tabla:" << QueryUpdateData.lastError().text();
+        dbnodestock.rollback();
+    } else {
+        dbnodestock.commit();
+        cargarInventario();
+    }
 }
 
 void MainWindow::on_eliminarBtn_clicked()
 {
-    if(cambiarBotonGuardar()) {
-        cargarDato(indexActual);
+    if (indexActual < 0 || indexActual >= ui->tableViewInventario->model()->rowCount()) {
+        QMessageBox::warning(this, "Advertencia", "Seleccione un registro para eliminar.");
         return;
     }
 
     QString id = ui->id->text();
 
-
     if (id.isEmpty()) {
-        QMessageBox::warning(this, "Campos vacíos", "el id no puede estar vacio");
+        QMessageBox::warning(this, "Campos vacíos", "El ID no puede estar vacío.");
         return;
     }
 
-    if (QMessageBox::question(this, "Eliminar Registro", "¿Estás seguro de que quieres eliminar el registro con " + id + "?") == QMessageBox::Yes) {
+    if (QMessageBox::question(this, "Eliminar Registro", "¿Está seguro de que quiere eliminar el registro con ID: " + id + "?") == QMessageBox::Yes) {
 
-        // Verifica la conexión con la base de datos
         if (!dbnodestock.isOpen() && !dbnodestock.open()) {
             qDebug() << "Error: No se pudo abrir la base de datos.";
             return;
         }
 
-        // Inicia una transacción
         if (!dbnodestock.transaction()) {
             qDebug() << "Error al iniciar la transacción:" << dbnodestock.lastError().text();
             return;
         }
 
+        QSqlQuery QueryDeleteData(dbnodestock);
+        QueryDeleteData.prepare("DELETE FROM inventario WHERE id = :id");
+        QueryDeleteData.bindValue(":id", id);
 
-        QSqlQuery QueryUpdateData(dbnodestock);
-        QueryUpdateData.prepare("delete from inventario where id = :id");
-
-        QueryUpdateData.bindValue(":id", id);
-
-        // Ejecutar el update
-        if (!QueryUpdateData.exec()) {
-            qDebug() << "Error al eliminar en la tabla:" << QueryUpdateData.lastError().text();
+        if (!QueryDeleteData.exec()) {
+            qDebug() << "Error al eliminar en la tabla:" << QueryDeleteData.lastError().text();
             dbnodestock.rollback();
+            QMessageBox::critical(this, "Error", "No se pudo eliminar el registro.");
         } else {
-            qDebug() << "Eliminacion exitosa.";
             dbnodestock.commit();
-            cargarInventario();  // Recarga los datos en la tabla para reflejar el cambio
-            cargarDato(indexActual-1);
+            qDebug() << "Eliminación exitosa.";
+            QMessageBox::information(this, "Éxito", "El registro ha sido eliminado con éxito.");
+            cargarInventario();
 
+            if (indexActual >= ui->tableViewInventario->model()->rowCount()) {
+                indexActual = ui->tableViewInventario->model()->rowCount() - 1;
+            }
+            cargarDato(indexActual);
         }
     }
-
-
-    int rowCount = ui->tableViewInventario->model()->rowCount();
-    if (rowCount == 0) {
-        indexActual = 0;  // No hay más registros
-        ui->id->clear();
-        ui->comboBoxProducto->setCurrentIndex(0);
-        ui->comboBoxProveedor->setCurrentIndex(0);
-        ui->spinBoxCantidad->clear();
-        ui->fechaEntrada->clear();
-    } else if (indexActual >= rowCount) {
-        indexActual = rowCount - 1;
-    }
-
-    qDebug() << rowCount;
-
-    // Cierra la conexión
-    dbnodestock.close();
 }
+
 
 void MainWindow::on_impresionBtn_clicked()
 {
-    if (QMessageBox::question(this, "Impresión", "¿Deseas imprimir el registro?") == QMessageBox::Yes) {
-        QPrinter printer(QPrinter::HighResolution);
-        printer.setPageSize(QPageSize(QPageSize::A4));
-        printer.setFullPage(true);
-
-        QPageLayout pageLayout;
-        pageLayout.setOrientation(QPageLayout::Portrait);
-        printer.setPageLayout(pageLayout);
-
-        QPrintDialog printDialog(&printer, this);
-        if (printDialog.exec() != QDialog::Accepted) {
-            return;
-        }
-
-        QString htmlContent;
-        htmlContent += "<html><head><style>";
-        htmlContent += "body { font-family: Arial, sans-serif; }";
-        htmlContent += "h1 { text-align: center; font-size: 18px; }";
-        htmlContent += "table { width: 100%; border-collapse: collapse; }";
-        htmlContent += "th, td { border: 1px solid black; padding: 8px; text-align: left; font-size: 18px; }";
-        htmlContent += "th { background-color: #f2f2f2; font-weight: bold; }";
-        htmlContent += "</style></head><body>";
-        htmlContent += "<h1>Listado de Inventario</h1><table><tr><th>ID</th><th>Producto ID</th><th>Proveedor ID</th><th>Cantidad</th><th>Fecha Entrada</th></tr>";
-
-        if (!dbnodestock.isOpen() && !dbnodestock.open()) {
-            qDebug() << "Error: No se pudo abrir la base de datos.";
-            return;
-        }
-
-        QSqlQuery QuerySelectData(dbnodestock);
-        QuerySelectData.prepare("SELECT * FROM inventario");
-
-        if (!QuerySelectData.exec()) {
-            qDebug() << "Error al obtener los datos en la tabla:" << QuerySelectData.lastError().text();
-        } else {
-            while (QuerySelectData.next()) {
-                int id = QuerySelectData.value(0).toInt();
-                QString productoId = QuerySelectData.value(1).toString();
-                QString proveedorId = QuerySelectData.value(2).toString();
-                QString cantidad = QuerySelectData.value(3).toString();
-                QString fechaEntrada = QuerySelectData.value(4).toString();
-
-                htmlContent += "<tr>";
-                htmlContent += "<td>" + QString::number(id) + "</td>";
-                htmlContent += "<td>" + productoId + "</td>";
-                htmlContent += "<td>" + proveedorId + "</td>";
-                htmlContent += "<td>" + cantidad + "</td>";
-                htmlContent += "<td>" + fechaEntrada + "</td>";
-                htmlContent += "</tr>";
-            }
-        }
-
-        htmlContent += "</table></body></html>";
-
-        QTextDocument document;
-        document.setHtml(htmlContent);
-        document.setPageSize(printer.pageRect(QPrinter::Point).size());
-        document.print(&printer);
+    if (QMessageBox::question(this, "Impresión", "¿Desea imprimir el listado completo de inventario?") != QMessageBox::Yes) {
+        return;
     }
+
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setPageSize(QPageSize(QPageSize::A4));
+    printer.setFullPage(true);
+
+    QPrintDialog printDialog(&printer, this);
+    if (printDialog.exec() != QDialog::Accepted) return;
+
+    QString htmlContent;
+    htmlContent += "<html><head><style>";
+    htmlContent += "body { font-family: Arial, sans-serif; }";
+    htmlContent += "h1 { text-align: center; font-size: 18px; }";
+    htmlContent += "table { width: 100%; border-collapse: collapse; }";
+    htmlContent += "th, td { border: 1px solid black; padding: 8px; text-align: left; font-size: 14px; }";
+    htmlContent += "th { background-color: #f2f2f2; font-weight: bold; }";
+    htmlContent += "</style></head><body>";
+    htmlContent += "<h1>Listado de Inventario</h1><table>";
+    htmlContent += "<tr><th>ID</th><th>Producto</th><th>Proveedor</th><th>Cantidad</th><th>Fecha Entrada</th></tr>";
+
+    if (!dbnodestock.isOpen() && !dbnodestock.open()) {
+        qDebug() << "Error: No se pudo abrir la base de datos.";
+        return;
+    }
+
+    QSqlQuery QuerySelectData(dbnodestock);
+    QuerySelectData.prepare("SELECT i.id, p.nombre AS producto, pr.nombre AS proveedor, i.cantidad, i.fecha_entrada "
+                            "FROM inventario i "
+                            "INNER JOIN productos p ON i.producto_id = p.id "
+                            "INNER JOIN proveedores pr ON i.proveedor_id = pr.id");
+
+    if (QuerySelectData.exec()) {
+        while (QuerySelectData.next()) {
+            htmlContent += "<tr>";
+            htmlContent += "<td>" + QuerySelectData.value(0).toString() + "</td>";
+            htmlContent += "<td>" + QuerySelectData.value(1).toString() + "</td>";
+            htmlContent += "<td>" + QuerySelectData.value(2).toString() + "</td>";
+            htmlContent += "<td>" + QuerySelectData.value(3).toString() + "</td>";
+            htmlContent += "<td>" + QuerySelectData.value(4).toString() + "</td>";
+            htmlContent += "</tr>";
+        }
+    } else {
+        qDebug() << "Error al obtener los datos:" << QuerySelectData.lastError().text();
+        QMessageBox::critical(this, "Error", "No se pudo obtener los datos de inventario.");
+    }
+
+    htmlContent += "</table></body></html>";
+
+    QTextDocument document;
+    document.setHtml(htmlContent);
+    document.setPageSize(printer.pageRect(QPrinter::Point).size());
+    document.print(&printer);
 }
+
 
 bool MainWindow::cambiarBotonGuardar()
 {
@@ -807,91 +720,50 @@ void MainWindow::on_siguienteBtn_clicked()
 
 void MainWindow::on_guardarCatBtn_clicked()
 {
-    QSqlQuery insert_cat;
-    QSqlQueryModel *modal = new QSqlQueryModel;
-
-    if (ui->nombreLineEdit->text().isEmpty() ||
-        ui->descLineEditCat->text().isEmpty()) {
+    if (ui->nombreLineEdit->text().isEmpty() || ui->descLineEditCat->text().isEmpty()) {
         QMessageBox::warning(this, "Campos Vacíos", "Por favor, complete todos los campos obligatorios antes de registrar la categoría.");
         return;
     }
 
-    insert_cat.prepare("INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)");
-    insert_cat.bindValue(":nombre", ui->nombreLineEdit->text());
-    insert_cat.bindValue(":descripcion", ui->descLineEditCat->text());
+    QSqlQuery insertCatQuery;
+    insertCatQuery.prepare("INSERT INTO categorias (nombre, descripcion) VALUES (:nombre, :descripcion)");
+    insertCatQuery.bindValue(":nombre", ui->nombreLineEdit->text().trimmed());
+    insertCatQuery.bindValue(":descripcion", ui->descLineEditCat->text().trimmed());
 
-    if (!insert_cat.exec()) {
-        qDebug() << "Inserción de Datos Fallida: " << insert_cat.lastError().text();
-        QMessageBox::critical(this, "Error", "Data insertion failed: " + insert_cat.lastError().text());
-    } else {
-        QMessageBox::information(this, "Success", "Inserción de Datos Exitosa.");
-        qDebug() << "Inserción de Datos Exitosa.";
-        loadCategories();
+    if (insertCatQuery.exec()) {
+        QMessageBox::information(this, "Éxito", "La categoría se ha registrado con éxito.");
+        loadCategoriesInTable();
         ui->nombreLineEdit->clear();
         ui->descLineEditCat->clear();
-
-        QSqlQuery select_cat;
-        select_cat.prepare("SELECT * FROM categorias");
-
-        if (select_cat.exec()) {
-            modal->setQuery(QSqlQuery("SELECT * FROM categorias"));
-            ui->tableViewCategoria->setModel(modal);
-
-            modal->setHeaderData(0, Qt::Horizontal, "ID");
-            modal->setHeaderData(1, Qt::Horizontal, "Nombre de la categoría");
-            modal->setHeaderData(2, Qt::Horizontal, "Descripción");
-
-            ui->tableViewCategoria->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-            ui->tableViewCategoria->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-            ui->tableViewCategoria->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
-        } else {
-            qDebug() << "Selección Fallida: " << select_cat.lastError().text();
-        }
+    } else {
+        qDebug() << "Error en la inserción de categoría:" << insertCatQuery.lastError().text();
+        QMessageBox::critical(this, "Error", "No se pudo registrar la categoría.");
     }
 }
 
+
 void MainWindow::on_eliminarCatBtn_clicked()
 {
-    ui->nombreLineEdit->setDisabled(true);
-    ui->descLineEditCat->setDisabled(true);
-    ui->nombreLineEdit->clear();
-    ui->descLineEditCat->clear();
-
-    QItemSelectionModel *selectionModel = ui->tableViewCategoria->selectionModel();
-    if(!selectionModel->hasSelection()){
-        QMessageBox::warning(this, "Advertencia", "Porfavor, seccione la fila que desea eliminar.");
+    auto selectionModel = ui->tableViewCategoria->selectionModel();
+    if (!selectionModel->hasSelection()) {
+        QMessageBox::warning(this, "Advertencia", "Seleccione una categoría para eliminar.");
         return;
     }
 
-    QModelIndex selectedIndex = selectionModel->currentIndex();
-    int row = selectedIndex.row();
-    int id = ui->tableViewCategoria->model()->index(row, 0).data().toInt();
+    int selectedRow = selectionModel->currentIndex().row();
+    int categoryId = ui->tableViewCategoria->model()->index(selectedRow, 0).data().toInt();
 
-    QMessageBox::StandardButton respuesta;
-    respuesta = QMessageBox::question(this, "Eliminar", "Esta seguro de eliminar la categoría?", QMessageBox::Yes | QMessageBox::No);
+    if (QMessageBox::question(this, "Confirmar Eliminación", "¿Está seguro de que desea eliminar esta categoría?") == QMessageBox::Yes) {
+        QSqlQuery deleteCatQuery;
+        deleteCatQuery.prepare("DELETE FROM categorias WHERE id = :id");
+        deleteCatQuery.bindValue(":id", categoryId);
 
-    if(respuesta == QMessageBox::Yes){
-        QSqlQuery delete_cat;
-        delete_cat.prepare("DELETE FROM categorias WHERE id = :id");
-        delete_cat.bindValue(":id", id);
-        if(!delete_cat.exec()){
-            qDebug() << "La eliminacion Falló: " + delete_cat.lastError().text();
-            QMessageBox::critical(this,"Error","Error al eliminar la categoria: " + delete_cat.lastError().text());
+        if (deleteCatQuery.exec()) {
+            QMessageBox::information(this, "Éxito", "La categoría ha sido eliminada con éxito.");
+            loadCategoriesInTable();
         } else {
-            qDebug() << "Se eliminó con éxito la categoría";
-            QMessageBox::information(this,"Éxito","La categoría ha sido elimada con éxito.");
-
-            QSqlQueryModel *model = new QSqlQueryModel(this);
-            model->setQuery("SELECT * FROM categorias");
-            ui->tableViewCategoria->setModel(model);
-
-            model->setHeaderData(0, Qt::Horizontal, "ID");
-            model->setHeaderData(1, Qt::Horizontal, "Nombre de la categoría");
-            model->setHeaderData(2, Qt::Horizontal, "Descripción");
-
-            ui->tableViewCategoria->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-            ui->tableViewCategoria->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-            ui->tableViewCategoria->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+            qDebug() << "Error en la eliminación de categoría:" << deleteCatQuery.lastError().text();
+            QMessageBox::critical(this, "Error", "No se pudo eliminar la categoría.");
         }
     }
 }
@@ -900,57 +772,31 @@ void MainWindow::on_eliminarCatBtn_clicked()
 void MainWindow::on_actualizarCatBtn_clicked()
 {
     if (currentCatId == -1) {
-        QMessageBox::warning(this, "Advertencia", "Realice Doble-Click y cargue una categoría antes de actualizar.");
+        QMessageBox::warning(this, "Advertencia", "Seleccione una categoría para actualizar.");
         return;
     }
 
-    QMessageBox::StandardButton respuesta;
-    respuesta = QMessageBox::question(this, "Confirmar Actualización", "¿Desea guardar los cambios realizados en la categoría?", QMessageBox::Yes | QMessageBox::No);
+    QSqlQuery updateCatQuery;
+    updateCatQuery.prepare("UPDATE categorias SET nombre = :nombre, descripcion = :descripcion WHERE id = :id");
+    updateCatQuery.bindValue(":nombre", ui->nombreLineEdit->text().trimmed());
+    updateCatQuery.bindValue(":descripcion", ui->descLineEditCat->text().trimmed());
+    updateCatQuery.bindValue(":id", currentCatId);
 
-    if (respuesta == QMessageBox::Yes) {
-        QString newName = ui->nombreLineEdit->text();
-        QString newDescription = ui->descLineEditCat->text();
-
-        QSqlQuery updateQuery;
-        updateQuery.prepare("UPDATE categorias SET nombre = :nombre, descripcion = :descripcion WHERE id = :id");
-        updateQuery.bindValue(":nombre", newName);
-        updateQuery.bindValue(":descripcion", newDescription);
-        updateQuery.bindValue(":id", currentCatId);
-
-        if (!updateQuery.exec()) {
-            qDebug() << "Update Failed: " << updateQuery.lastError().text();
-            QMessageBox::critical(this, "Error", "Error al actualizar la categoría: " + updateQuery.lastError().text());
-        } else {
-            QMessageBox::information(this, "Éxito", "La categoría se ha actualizado exitosamente.");
-
-            QSqlQueryModel *model = new QSqlQueryModel(this);
-            model->setQuery("SELECT * FROM categorias");
-            ui->tableViewCategoria->setModel(model);
-
-            ui->nombreLineEdit->clear();
-            ui->descLineEditCat->clear();
-            currentCatId = -1;
-        }
+    if (updateCatQuery.exec()) {
+        QMessageBox::information(this, "Éxito", "La categoría ha sido actualizada.");
+        loadCategoriesInTable();
+        ui->nombreLineEdit->clear();
+        ui->descLineEditCat->clear();
+        currentCatId = -1;
+    } else {
+        qDebug() << "Error en la actualización de categoría:" << updateCatQuery.lastError().text();
+        QMessageBox::critical(this, "Error", "No se pudo actualizar la categoría.");
     }
 }
 
-void MainWindow::on_tableViewCategoria_doubleClicked(const QModelIndex &index)
-{
-    int row = index.row();
-    int id = ui->tableViewCategoria->model()->index(row, 0).data().toInt();
-
-    currentCatId = id;
-
-    QString currentName = ui->tableViewCategoria->model()->index(row, 1).data().toString();
-    QString currentDescription = ui->tableViewCategoria->model()->index(row, 2).data().toString();
-
-    ui->nombreLineEdit->setText(currentName);
-    ui->descLineEditCat->setText(currentDescription);
-}
 
 void MainWindow::on_impresionCatBtn_clicked()
 {
-    // Step 1: Set up the printer
     QPrinter printer(QPrinter::HighResolution);
     printer.setPageSize(QPageSize(QPageSize::A4));
     printer.setFullPage(true);
@@ -959,207 +805,172 @@ void MainWindow::on_impresionCatBtn_clicked()
     pageLayout.setOrientation(QPageLayout::Portrait);
     printer.setPageLayout(pageLayout);
 
-    // Step 2: Show the print dialog
     QPrintDialog printDialog(&printer, this);
     if (printDialog.exec() != QDialog::Accepted) {
-        return; // Exit if the user cancels the dialog
+        return;  // Exit if the user cancels the print dialog
     }
 
-    // Step 3: Create HTML content with CSS for styling
     QString htmlContent;
     htmlContent += "<html><head><style>";
     htmlContent += "body { font-family: Arial, sans-serif; }";
-    htmlContent += "h1 { text-align: center; font-size: 18px; }";  // Title font size
+    htmlContent += "h1 { text-align: center; font-size: 18px; }";
     htmlContent += "table { width: 100%; border-collapse: collapse; }";
-    htmlContent += "th, td { border: 1px solid black; padding: 8px; text-align: left; font-size: 18px; }";  // Matching title font size
+    htmlContent += "th, td { border: 1px solid black; padding: 8px; text-align: left; font-size: 18px; }";
     htmlContent += "th { background-color: #f2f2f2; font-weight: bold; }";
     htmlContent += "</style></head><body>";
 
-    // Add a title
     htmlContent += "<h1>Listado de Categorías</h1>";
+    htmlContent += "<table><tr><th>ID</th><th>Nombre</th><th>Descripción</th></tr>";
 
-    // Step 4: Add table headers
-    htmlContent += "<table>";
-    htmlContent += "<tr><th>ID</th><th>Nombre</th><th>Descripción</th></tr>";
-
-    // Step 5: Query the database and add each row as an HTML table row
     QSqlQuery query("SELECT id, nombre, descripcion FROM categorias");
     while (query.next()) {
-        int id = query.value(0).toInt();
-        QString nombre = query.value(1).toString();
-        QString descripcion = query.value(2).toString();
-
         htmlContent += "<tr>";
-        htmlContent += "<td>" + QString::number(id) + "</td>";
-        htmlContent += "<td>" + nombre + "</td>";
-        htmlContent += "<td>" + descripcion + "</td>";
+        htmlContent += "<td>" + query.value("id").toString() + "</td>";
+        htmlContent += "<td>" + query.value("nombre").toString() + "</td>";
+        htmlContent += "<td>" + query.value("descripcion").toString() + "</td>";
         htmlContent += "</tr>";
     }
-
     htmlContent += "</table></body></html>";
 
-    // Step 6: Load HTML content into a QTextDocument
     QTextDocument document;
     document.setHtml(htmlContent);
-
-    // Set the document's size to match the printer's page size
     document.setPageSize(printer.pageRect(QPrinter::Point).size());
-
-    // Step 7: Print the document
     document.print(&printer);
 }
 
+
 //// ========================> PROVEEDORES <======================== ////
+/// \brief MainWindow::loadProveedoresTable
+void MainWindow::clearSupplierFields()
+{
+    // Clears the supplier-related input fields
+    ui->nombreProveedor->clear();
+    ui->telProveedor->clear();
+    ui->emailProveedor->clear();
+
+    // Enables fields in case they were disabled previously
+    ui->nombreProveedor->setEnabled(true);
+    ui->telProveedor->setEnabled(true);
+    ui->emailProveedor->setEnabled(true);
+
+    // Optionally reset any related state variables, like `currentProvId`
+    currentProvId = -1;
+}
+
 
 void MainWindow::loadProveedoresTable()
 {
     QSqlQueryModel *model = new QSqlQueryModel(this);
-    QSqlQuery select_proveedor("SELECT id, nombre, telefono, email FROM proveedores");  // Incluye el ID si es necesario
+    QSqlQuery selectProveedorQuery("SELECT id, nombre, telefono, email FROM proveedores");
 
-    if (select_proveedor.exec()) {
-        model->setQuery(std::move(select_proveedor));
+    if (selectProveedorQuery.exec()) {
+        model->setQuery(std::move(selectProveedorQuery));
         ui->tableViewProveedores->setModel(model);
 
-        model->setHeaderData(0, Qt::Horizontal, "ID");  // Solo si decides mostrar el ID
+        // Set header names for better readability
+        model->setHeaderData(0, Qt::Horizontal, "ID");
         model->setHeaderData(1, Qt::Horizontal, "Nombre del Proveedor");
         model->setHeaderData(2, Qt::Horizontal, "Teléfono del Proveedor");
         model->setHeaderData(3, Qt::Horizontal, "Email del Proveedor");
 
+        // Resize columns to fit data
         ui->tableViewProveedores->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
         ui->tableViewProveedores->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
         ui->tableViewProveedores->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
         ui->tableViewProveedores->horizontalHeader()->setSectionResizeMode(3, QHeaderView::Stretch);
     } else {
-        qDebug() << "Selección Fallida:" << select_proveedor.lastError().text();
-        QMessageBox::warning(this, "Error", "No se pudo cargar la tabla de proveedores. Intente de nuevo.");
+        qDebug() << "Error loading suppliers:" << selectProveedorQuery.lastError().text();
+        QMessageBox::critical(this, "Error", "No se pudo cargar la tabla de proveedores.");
     }
 }
+
 
 void MainWindow::on_guardarProveBtn_clicked()
 {
     if (isNewProveedor) {
-        clearFields();
-        ui->guardarProveBtn->setText("Guardar Proveedor");  // Cambiado el nombre del botón
+        clearSupplierFields();
+        ui->guardarProveBtn->setText("Guardar Proveedor");
         isNewProveedor = false;
     } else {
         if (ui->nombreProveedor->text().isEmpty() ||
             ui->telProveedor->text().isEmpty() ||
             ui->emailProveedor->text().isEmpty()) {
-
-            QMessageBox::warning(this, "Campos Vacíos", "Por favor, complete todos los campos obligatorios antes de registrar el proveedor.");
+            QMessageBox::warning(this, "Campos Vacíos", "Complete todos los campos.");
             return;
         }
 
-        QSqlQuery proveedor_insert;
-        proveedor_insert.prepare("INSERT INTO proveedores (nombre, telefono, email) "
-                                 "VALUES (:nombre, :tel, :email)");
+        QSqlQuery insertProveedorQuery;
+        insertProveedorQuery.prepare("INSERT INTO proveedores (nombre, telefono, email) VALUES (:nombre, :tel, :email)");
+        insertProveedorQuery.bindValue(":nombre", ui->nombreProveedor->text().trimmed());
+        insertProveedorQuery.bindValue(":tel", ui->telProveedor->text().trimmed());
+        insertProveedorQuery.bindValue(":email", ui->emailProveedor->text().trimmed());
 
-        proveedor_insert.bindValue(":nombre", formatearPalabra(ui->nombreProveedor->text()));  // Cambiado prodNombre a nombreProveedor
-        proveedor_insert.bindValue(":tel", ui->telProveedor->text());
-        proveedor_insert.bindValue(":email", ui->emailProveedor->text());
-
-        if (!proveedor_insert.exec()) {
-            QMessageBox::critical(this, "Error", "No se realizó el registro: " + proveedor_insert.lastError().text());
-        } else {
-            QMessageBox::information(this, "Éxito", "El proveedor se ha registrado con éxito.");
+        if (insertProveedorQuery.exec()) {
+            QMessageBox::information(this, "Éxito", "Proveedor registrado.");
             loadProveedoresTable();
+            clearSupplierFields();
             ui->guardarProveBtn->setText("Nuevo Proveedor");
             isNewProveedor = true;
-            ui->nombreProveedor->clear();
-            ui->telProveedor->clear();
-            ui->emailProveedor->clear();
+        } else {
+            qDebug() << "Error al registrar proveedor:" << insertProveedorQuery.lastError().text();
+            QMessageBox::critical(this, "Error", "No se pudo registrar el proveedor.");
         }
     }
 }
+
 
 void MainWindow::on_eliminarProveBtn_clicked()
 {
-    ui->nombreProveedor->setDisabled(true);
-    ui->telProveedor->setDisabled(true);
-    ui->emailProveedor->setDisabled(true);
-    ui->nombreProveedor->clear();
-    ui->telProveedor->clear();
-    ui->emailProveedor->clear();
-
-    QItemSelectionModel *selectionModel = ui->tableViewProveedores->selectionModel();
-    if(!selectionModel->hasSelection()){
-        QMessageBox::warning(this, "Advertencia", "Porfavor, seccione la fila que desea eliminar.");
+    auto selectionModel = ui->tableViewProveedores->selectionModel();
+    if (!selectionModel->hasSelection()) {
+        QMessageBox::warning(this, "Advertencia", "Seleccione un proveedor para eliminar.");
         return;
     }
 
-    QModelIndex selectedIndex = selectionModel->currentIndex();
-    int row = selectedIndex.row();
-    int id = ui->tableViewProveedores->model()->index(row, 0).data().toInt();
+    int selectedRow = selectionModel->currentIndex().row();
+    int proveedorId = ui->tableViewProveedores->model()->index(selectedRow, 0).data().toInt();
 
-    QMessageBox::StandardButton respuesta;
-    respuesta = QMessageBox::question(this, "Eliminar", "Esta seguro de eliminar el proveedor?", QMessageBox::Yes | QMessageBox::No);
+    if (QMessageBox::question(this, "Confirmar Eliminación", "¿Desea eliminar el proveedor seleccionado?") == QMessageBox::Yes) {
+        QSqlQuery deleteProveedorQuery;
+        deleteProveedorQuery.prepare("DELETE FROM proveedores WHERE id = :id");
+        deleteProveedorQuery.bindValue(":id", proveedorId);
 
-    if(respuesta == QMessageBox::Yes){
-        QSqlQuery delete_proveedores;
-        delete_proveedores.prepare("DELETE FROM proveedores WHERE id = :id");
-        delete_proveedores.bindValue(":id", id);
-        if(!delete_proveedores.exec()){
-            qDebug() << "La eliminacion Falló: " + delete_proveedores.lastError().text();
-            QMessageBox::critical(this,"Error","Error al eliminar el proveedor: " + delete_proveedores.lastError().text());
+        if (deleteProveedorQuery.exec()) {
+            QMessageBox::information(this, "Éxito", "Proveedor eliminado.");
+            loadProveedoresTable();
         } else {
-            qDebug() << "Se eliminó con éxito el proveedor";
-            QMessageBox::information(this,"Éxito","El proveedor ha sido elimada con éxito.");
-
-            QSqlQueryModel *model = new QSqlQueryModel(this);
-            model->setQuery("SELECT * FROM proveedores");
-            ui->tableViewProveedores->setModel(model);
-
-            model->setHeaderData(0, Qt::Horizontal, "Nombre del Proveedor");
-            model->setHeaderData(1, Qt::Horizontal, "Teléfono del Proveedor");
-            model->setHeaderData(2, Qt::Horizontal, "Email del Proveedor");
-
-            ui->tableViewProveedores->horizontalHeader()->setSectionResizeMode(0, QHeaderView::ResizeToContents);
-            ui->tableViewProveedores->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-            ui->tableViewProveedores->horizontalHeader()->setSectionResizeMode(2, QHeaderView::Stretch);
+            qDebug() << "Error al eliminar proveedor:" << deleteProveedorQuery.lastError().text();
+            QMessageBox::critical(this, "Error", "No se pudo eliminar el proveedor.");
         }
     }
 }
+
 
 void MainWindow::on_actualizarProveBtn_clicked()
 {
     if (currentProvId == -1) {
-        QMessageBox::warning(this, "Advertencia", "Realice Doble-Click y cargue un proveedor antes de actualizar.");
+        QMessageBox::warning(this, "Advertencia", "Seleccione un proveedor para actualizar.");
         return;
     }
 
-    QMessageBox::StandardButton respuesta;
-    respuesta = QMessageBox::question(this, "Confirmar Actualización", "¿Desea guardar los cambios realizados en el proveedor?", QMessageBox::Yes | QMessageBox::No);
+    QSqlQuery updateProveedorQuery;
+    updateProveedorQuery.prepare("UPDATE proveedores SET nombre = :nombre, telefono = :tel, email = :email WHERE id = :id");
+    updateProveedorQuery.bindValue(":nombre", ui->nombreProveedor->text().trimmed());
+    updateProveedorQuery.bindValue(":tel", ui->telProveedor->text().trimmed());
+    updateProveedorQuery.bindValue(":email", ui->emailProveedor->text().trimmed());
+    updateProveedorQuery.bindValue(":id", currentProvId);
 
-    if (respuesta == QMessageBox::Yes) {
-        QString nuevoProveedorNombre = ui->nombreProveedor->text();
-        QString nuevoProveedorTel = ui->telProveedor->text();
-        QString nuevoProveedorEmail = ui->emailProveedor->text();
-
-        QSqlQuery updateQuery;
-        updateQuery.prepare("UPDATE proveedores SET nombre = :nombre, telefono = :tel, email = :email WHERE id = :id");
-        updateQuery.bindValue(":nombre", nuevoProveedorNombre);
-        updateQuery.bindValue(":tel", nuevoProveedorTel);
-        updateQuery.bindValue(":email", nuevoProveedorEmail);
-        updateQuery.bindValue(":id", currentProvId);
-
-        if (!updateQuery.exec()) {
-            qDebug() << "Update Failed: " << updateQuery.lastError().text();
-            QMessageBox::critical(this, "Error", "Error al actualizar el proveedor: " + updateQuery.lastError().text());
-        } else {
-            QMessageBox::information(this, "Éxito", "El proveedor se ha actualizado exitosamente.");
-
-            QSqlQueryModel *model = new QSqlQueryModel(this);
-            model->setQuery("SELECT * FROM proveedores");
-            ui->tableViewProveedores->setModel(model);
-
-            ui->nombreProveedor->clear();
-            ui->telProveedor->clear();
-            ui->emailProveedor->clear();
-
-            currentProvId = -1;
-        }
+    if (updateProveedorQuery.exec()) {
+        QMessageBox::information(this, "Éxito", "Proveedor actualizado.");
+        loadProveedoresTable();
+        clearSupplierFields();
+        currentProvId = -1;
+    } else {
+        qDebug() << "Error al actualizar proveedor:" << updateProveedorQuery.lastError().text();
+        QMessageBox::critical(this, "Error", "No se pudo actualizar el proveedor.");
     }
 }
+
 
 void MainWindow::on_tableViewProveedores_doubleClicked(const QModelIndex &index)
 {
@@ -1180,7 +991,6 @@ void MainWindow::on_tableViewProveedores_doubleClicked(const QModelIndex &index)
 
 void MainWindow::on_impresionProveBtn_clicked()
 {
-    // Step 1: Set up the printer
     QPrinter printer(QPrinter::HighResolution);
     printer.setPageSize(QPageSize(QPageSize::A4));
     printer.setFullPage(true);
@@ -1189,54 +999,52 @@ void MainWindow::on_impresionProveBtn_clicked()
     pageLayout.setOrientation(QPageLayout::Portrait);
     printer.setPageLayout(pageLayout);
 
-    // Step 2: Show the print dialog
     QPrintDialog printDialog(&printer, this);
     if (printDialog.exec() != QDialog::Accepted) {
-        return; // Exit if the user cancels the dialog
+        return;  // Exit if the user cancels the print dialog
     }
 
-    // Step 3: Create HTML content with CSS for styling
     QString htmlContent;
     htmlContent += "<html><head><style>";
     htmlContent += "body { font-family: Arial, sans-serif; }";
-    htmlContent += "h1 { text-align: center; font-size: 18px; }";  // Title font size
+    htmlContent += "h1 { text-align: center; font-size: 18px; }";
     htmlContent += "table { width: 100%; border-collapse: collapse; }";
-    htmlContent += "th, td { border: 1px solid black; padding: 8px; text-align: left; font-size: 18px; }";  // Matching title font size
+    htmlContent += "th, td { border: 1px solid black; padding: 8px; text-align: left; font-size: 18px; }";
     htmlContent += "th { background-color: #f2f2f2; font-weight: bold; }";
     htmlContent += "</style></head><body>";
 
-    // Add a title
     htmlContent += "<h1>Listado de Proveedores</h1>";
+    htmlContent += "<table><tr><th>ID</th><th>Nombre</th><th>Teléfono</th><th>Email</th></tr>";
 
-    // Step 4: Add table headers
-    htmlContent += "<table>";
-    htmlContent += "<tr><th>ID</th><th>Nombre</th><th>Teléfono</th><th>Email</th></tr>";
-
-    // Step 5: Query the database and add each row as an HTML table row
     QSqlQuery query("SELECT id, nombre, telefono, email FROM proveedores");
     while (query.next()) {
-        int id = query.value(0).toInt();
-        QString nombre = query.value(1).toString();
-        QString telefono = query.value(2).toString();
-        QString email = query.value(3).toString();
-
         htmlContent += "<tr>";
-        htmlContent += "<td>" + QString::number(id) + "</td>";
-        htmlContent += "<td>" + nombre + "</td>";
-        htmlContent += "<td>" + telefono + "</td>";
-        htmlContent += "<td>" + email + "</td>";
+        htmlContent += "<td>" + query.value("id").toString() + "</td>";
+        htmlContent += "<td>" + query.value("nombre").toString() + "</td>";
+        htmlContent += "<td>" + query.value("telefono").toString() + "</td>";
+        htmlContent += "<td>" + query.value("email").toString() + "</td>";
         htmlContent += "</tr>";
     }
-
     htmlContent += "</table></body></html>";
 
-    // Step 6: Load HTML content into a QTextDocument
     QTextDocument document;
     document.setHtml(htmlContent);
-
-    // Set the document's size to match the printer's page size
     document.setPageSize(printer.pageRect(QPrinter::Point).size());
-
-    // Step 7: Print the document
     document.print(&printer);
+}
+
+void MainWindow::on_tableViewCategoria_doubleClicked(const QModelIndex &index)
+{
+    if (!index.isValid()) return;
+
+    int row = index.row();
+    int id = ui->tableViewCategoria->model()->index(row, 0).data().toInt();
+
+    currentCatId = id;
+
+    QString currentName = ui->tableViewCategoria->model()->index(row, 1).data().toString();
+    QString currentDescription = ui->tableViewCategoria->model()->index(row, 2).data().toString();
+
+    ui->nombreLineEdit->setText(currentName);
+    ui->descLineEditCat->setText(currentDescription);
 }
